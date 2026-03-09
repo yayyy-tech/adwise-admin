@@ -1,13 +1,14 @@
 import { create } from 'zustand';
+import type { Session, User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 
 interface AdminAuthState {
-  admin: any | null;
-  session: any | null;
+  admin: User | null;
+  session: Session | null;
   isLoading: boolean;
   isAuthenticated: boolean;
   initialize: () => Promise<void>;
-  signIn: (email: string, password: string) => Promise<void>;
+  signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
 }
 
@@ -18,25 +19,59 @@ export const useAdminAuthStore = create<AdminAuthState>((set) => ({
   isAuthenticated: false,
 
   initialize: async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session?.user) {
-      const { data: profile } = await supabase.from('profiles').select('role').eq('id', session.user.id).single();
-      if (profile?.role === 'admin') {
-        set({ admin: session.user, session, isAuthenticated: true });
-      } else {
-        await supabase.auth.signOut();
+    try {
+      const { data, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError) {
+        console.error('Failed to get session:', sessionError.message);
+        set({ isLoading: false });
+        return;
       }
-    }
-    set({ isLoading: false });
 
-    supabase.auth.onAuthStateChange(async (_, session) => {
+      const session = data.session;
       if (session?.user) {
-        const { data: profile } = await supabase.from('profiles').select('role').eq('id', session.user.id).single();
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', session.user.id)
+          .maybeSingle();
+
+        if (profileError) {
+          console.error('Failed to fetch profile:', profileError.message);
+          set({ isLoading: false });
+          return;
+        }
+
         if (profile?.role === 'admin') {
           set({ admin: session.user, session, isAuthenticated: true });
         } else {
           await supabase.auth.signOut();
-          set({ admin: null, isAuthenticated: false });
+        }
+      }
+    } catch (err) {
+      console.error('Initialization error:', err);
+    } finally {
+      set({ isLoading: false });
+    }
+
+    supabase.auth.onAuthStateChange(async (_event, session) => {
+      if (session?.user) {
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', session.user.id)
+          .maybeSingle();
+
+        if (profileError) {
+          console.error('Failed to fetch profile on auth change:', profileError.message);
+          set({ admin: null, session: null, isAuthenticated: false });
+          return;
+        }
+
+        if (profile?.role === 'admin') {
+          set({ admin: session.user, session, isAuthenticated: true });
+        } else {
+          await supabase.auth.signOut();
+          set({ admin: null, session: null, isAuthenticated: false });
         }
       } else {
         set({ admin: null, session: null, isAuthenticated: false });
@@ -46,16 +81,41 @@ export const useAdminAuthStore = create<AdminAuthState>((set) => ({
 
   signIn: async (email, password) => {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) throw error;
-    const { data: profile } = await supabase.from('profiles').select('role').eq('id', data.user.id).single();
+    if (error) {
+      return { error };
+    }
+
+    if (!data.user) {
+      return { error: new Error('Sign-in succeeded but no user was returned.') };
+    }
+
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', data.user.id)
+      .maybeSingle();
+
+    if (profileError) {
+      await supabase.auth.signOut();
+      return { error: new Error(`Failed to fetch profile: ${profileError.message}`) };
+    }
+
     if (profile?.role !== 'admin') {
       await supabase.auth.signOut();
-      throw new Error('Access denied. Admin accounts only.');
+      return { error: new Error('Access denied. Admin accounts only.') };
     }
+
+    set({
+      admin: data.user,
+      session: data.session,
+      isAuthenticated: true,
+    });
+
+    return { error: null };
   },
 
   signOut: async () => {
     await supabase.auth.signOut();
-    window.location.href = '/login';
+    set({ admin: null, session: null, isAuthenticated: false });
   },
 }));

@@ -1,8 +1,17 @@
 import { createClient } from '@supabase/supabase-js'
 
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+
+if (!supabaseUrl || !supabaseAnonKey) {
+  throw new Error(
+    'Missing Supabase environment variables. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.'
+  )
+}
+
 export const supabase = createClient(
-  import.meta.env.VITE_SUPABASE_URL,
-  import.meta.env.VITE_SUPABASE_ANON_KEY,
+  supabaseUrl,
+  supabaseAnonKey,
   {
     auth: {
       persistSession: true,
@@ -16,14 +25,14 @@ export const supabase = createClient(
   }
 )
 
-export const callEdgeFunction = async (name: string, body: object, session?: any) => {
+export const callEdgeFunction = async (name: string, body: object, session?: { access_token: string } | null) => {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' }
   if (session?.access_token) {
     headers['Authorization'] = `Bearer ${session.access_token}`
   }
 
   const response = await fetch(
-    `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/${name}`,
+    `${supabaseUrl}/functions/v1/${name}`,
     { method: 'POST', headers, body: JSON.stringify(body) }
   )
 

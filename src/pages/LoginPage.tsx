@@ -12,13 +12,11 @@ export function LoginPage() {
     if (!email.trim() || !password.trim()) return;
     setError('');
     setLoading(true);
-    try {
-      await signIn(email, password);
-    } catch (e: any) {
-      setError(e.message || 'Login failed');
-    } finally {
-      setLoading(false);
+    const { error: signInError } = await signIn(email, password);
+    if (signInError) {
+      setError(signInError.message || 'Login failed');
     }
+    setLoading(false);
   };
 
   return (

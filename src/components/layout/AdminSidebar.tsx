@@ -20,6 +20,11 @@ export function AdminSidebar() {
   const location = useLocation();
   const { signOut } = useAdminAuthStore();
 
+  const handleSignOut = async () => {
+    await signOut();
+    navigate('/login');
+  };
+
   return (
     <aside className="fixed inset-y-0 left-0 z-40 w-[240px] flex flex-col bg-sidebar border-r border-dark-border p-5">
       <div className="mb-1">
@@ -51,7 +56,7 @@ export function AdminSidebar() {
       </nav>
 
       <button
-        onClick={signOut}
+        onClick={handleSignOut}
         className="flex items-center gap-3 px-3 py-2 font-body text-[13px] text-dark-muted hover:text-red-400 mt-4"
       >
         <LogOut className="h-4 w-4" />
