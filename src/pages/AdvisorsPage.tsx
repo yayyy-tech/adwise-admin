@@ -12,7 +12,6 @@ const SPECIALISATIONS = [
 
 function generateTempPassword(): string {
   const adj = ['Swift', 'Clear', 'Bright', 'Calm', 'Bold'];
-  const noun = ['Lotus', 'River', 'Peak', 'Dawn', 'Stone'];
   const num = Math.floor(100 + Math.random() * 900);
   return `Adwise@${adj[Math.floor(Math.random() * adj.length)]}${num}!`;
 }
