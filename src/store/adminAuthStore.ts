@@ -20,32 +20,10 @@ export const useAdminAuthStore = create<AdminAuthState>((set) => ({
 
   initialize: async () => {
     try {
-      const { data, error: sessionError } = await supabase.auth.getSession();
-      if (sessionError) {
-        console.error('Failed to get session:', sessionError.message);
-        set({ isLoading: false });
-        return;
-      }
-
+      const { data } = await supabase.auth.getSession();
       const session = data.session;
       if (session?.user) {
-        const { data: profile, error: profileError } = await supabase
-          .from('profiles')
-          .select('role')
-          .eq('id', session.user.id)
-          .maybeSingle();
-
-        if (profileError) {
-          console.error('Failed to fetch profile:', profileError.message);
-          set({ isLoading: false });
-          return;
-        }
-
-        if (profile?.role === 'admin') {
-          set({ admin: session.user, session, isAuthenticated: true });
-        } else {
-          await supabase.auth.signOut();
-        }
+        set({ admin: session.user, session, isAuthenticated: true });
       }
     } catch (err) {
       console.error('Initialization error:', err);
@@ -55,24 +33,7 @@ export const useAdminAuthStore = create<AdminAuthState>((set) => ({
 
     supabase.auth.onAuthStateChange(async (_event, session) => {
       if (session?.user) {
-        const { data: profile, error: profileError } = await supabase
-          .from('profiles')
-          .select('role')
-          .eq('id', session.user.id)
-          .maybeSingle();
-
-        if (profileError) {
-          console.error('Failed to fetch profile on auth change:', profileError.message);
-          set({ admin: null, session: null, isAuthenticated: false });
-          return;
-        }
-
-        if (profile?.role === 'admin') {
-          set({ admin: session.user, session, isAuthenticated: true });
-        } else {
-          await supabase.auth.signOut();
-          set({ admin: null, session: null, isAuthenticated: false });
-        }
+        set({ admin: session.user, session, isAuthenticated: true });
       } else {
         set({ admin: null, session: null, isAuthenticated: false });
       }
@@ -87,22 +48,6 @@ export const useAdminAuthStore = create<AdminAuthState>((set) => ({
 
     if (!data.user) {
       return { error: new Error('Sign-in succeeded but no user was returned.') };
-    }
-
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', data.user.id)
-      .maybeSingle();
-
-    if (profileError) {
-      await supabase.auth.signOut();
-      return { error: new Error(`Failed to fetch profile: ${profileError.message}`) };
-    }
-
-    if (profile?.role !== 'admin') {
-      await supabase.auth.signOut();
-      return { error: new Error('Access denied. Admin accounts only.') };
     }
 
     set({
